@@ -2,9 +2,10 @@ import sqlite3
 import pathlib
 import os
 from inspect import getmembers, ismethod
+from . import utils
 
 HOME = str(pathlib.Path.home())
-DEFAULT_DATABASE = os.path.join(HOME, '.pmail.sqlite3')
+DEFAULT_DATABASE = os.path.join(HOME, 'pmail/pmail.sqlite3')
 
 class Connection():
     def __init__(self, db=DEFAULT_DATABASE):
@@ -35,10 +36,6 @@ class Connection():
     
     def close_connection(self):
         self.db.close()
-
-    @classmethod
-    def get_connection(self):
-        return Connection()
 
 class Field():
     def __init__(self, type_field=str, name='', value='', **kwargs):
@@ -89,13 +86,13 @@ class Model():
         UPDATE %s SET %s WHERE %s
     """
 
-    def __init__(self):
+    def __init__(self, connection=None):
         # define the name of table with name of class
         class_name = self.__class__.__name__.lower()
         self.table = class_name
         self.register_inserted = False
-        self.connection = Connection.get_connection()
-
+        self.connection = connection
+    
     def get_fields(self):
         return [
             getattr(self, field) for field, _ in getmembers(self)
@@ -104,7 +101,6 @@ class Model():
 
     def create_table_if_not_exists(self):
         table_name = self.__class__.__name__.lower()
-        connection = Connection.get_connection()
 
         fields = ','.join([
             field.get_create_format() for field in self.get_fields()
@@ -112,16 +108,16 @@ class Model():
 
         sql = self.SQL_CREATE_FORMAT % (table_name, fields)
 
-        connection.run(sql)
+        self.connection.run(sql)
 
     def get_all(self):
         sql = self.SQL_SELECT_FORMAT % (self.table, '')
         return self.connection.run_and_get_result(sql)
 
     @classmethod
-    def get(self, **kwargs):
+    def get(self, db_name, **kwargs):
         table_name = self.__name__.lower()
-        connection = Connection.get_connection()
+        connection = utils.get_connection_database(db_name)
 
         where_args = 'WHERE ' + ' AND '.join([
             '%s = %s' % field_and_value for field_and_value in kwargs.items()
@@ -177,4 +173,4 @@ class Model():
             )
 
         self.connection.run(sql)
-        self.register_inserted = True
+        self.register_inserted = True   

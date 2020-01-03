@@ -1,7 +1,7 @@
 from configparser import ConfigParser
 import pathlib
 import os
-import db
+from . import database
 
 HOME = pathlib.Path.home()
 DEFAULT_CONFIGURATION = os.path.join(HOME, '.pmail')
@@ -25,8 +25,13 @@ class Configuration(ConfigParser):
         
         os.mknod(file)
         conf = Configuration()
-        conf.add_section('database')
-        conf['database']['sqlite_db_path'] = db.DEFAULT_DATABASE
+        
+        list_conf = 'database:path file_backup:name,sufix'.split()
+        for section_fields in list_conf:
+            section, fields = section_fields.split(':')
+
+            conf.add_section(section)
+            conf[section] = { field: 'None' for field in fields.split(',') }
 
         with open(file, 'w') as file_conf:
             conf.write(file_conf)
