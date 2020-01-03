@@ -1,6 +1,7 @@
-from pmail import bootstrap, configuration
+from pmail import bootstrap, configuration, database
 
 import commands
+import os
 
 def main():
     app = bootstrap.Bootstrap()
@@ -10,9 +11,24 @@ def main():
     conf.read_config()
 
     app.set_configuration(conf)
-    app.register_command('list_email', commands.ListInboxAccountCommand)
+
+    db_path = "%s%s-%s.sqlite3" % (
+        conf['backup']['path'],
+        app.get_time_init(),
+        conf['backup']['name']
+    )
+
+    db = database.Connection()
+    print(db_path)
+    db.connect(db_path)
+
+    app.set_connection_database(db)
+
+    app.register_command('inbox', commands.ListInboxAccountCommand)
 
     app.init()
+
+    db.close_connection()
 
 if __name__ == '__main__':
     main()

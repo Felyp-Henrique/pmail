@@ -12,7 +12,8 @@ class Configuration(ConfigParser):
         self.file = file
 
     def read_config(self):
-        self.read_file(self.file)
+        with open(self.file, 'r') as file_conf:
+            self.read_file(file_conf)
 
     def save(self):
         with open(self.file, 'w') as file_conf:
@@ -26,12 +27,14 @@ class Configuration(ConfigParser):
         os.mknod(file)
         conf = Configuration()
         
-        list_conf = 'database:path file_backup:name,sufix'.split()
-        for section_fields in list_conf:
-            section, fields = section_fields.split(':')
+        conf_str = """
+            \r[backup]
+            \rpath=%s
+            \rname=backup
+            \rfrequent_day=1
+        """ % database.DEFAULT_DATABASE
 
-            conf.add_section(section)
-            conf[section] = { field: 'None' for field in fields.split(',') }
+        conf.read_string(conf_str)
 
         with open(file, 'w') as file_conf:
             conf.write(file_conf)

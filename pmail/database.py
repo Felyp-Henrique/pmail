@@ -5,10 +5,13 @@ from inspect import getmembers, ismethod
 from . import utils
 
 HOME = str(pathlib.Path.home())
-DEFAULT_DATABASE = os.path.join(HOME, 'pmail/pmail.sqlite3')
+DEFAULT_DATABASE = os.path.join(HOME, '')
 
 class Connection():
-    def __init__(self, db=DEFAULT_DATABASE):
+    def __init__(self, connection=None):
+        self.db = connection
+
+    def connect(self, db=DEFAULT_DATABASE):
         self.db = sqlite3.connect(db)
 
     def run_and_get_result(self, sql, *args):

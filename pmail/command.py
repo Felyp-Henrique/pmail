@@ -5,7 +5,7 @@ class Command():
     help = '' # will used to displaying in help
 
     def __init__(self):
-        self._parser = argparse.ArgumentParser(description=self.help)
+        self._parser = argparse.ArgumentParser()
 
     def add(self, name: str, *args, **kwargs) -> None:
         """Add new argument in parser
@@ -33,6 +33,8 @@ class Command():
         self._parser = parser
 
     def execute(self):
+        self._parser.description = self.help
+        
         self.add_arguments()
 
         args = self._parser.parse_args()
