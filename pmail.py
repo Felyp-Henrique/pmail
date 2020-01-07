@@ -51,7 +51,7 @@ def create_configuration_file(config={}):
 
 def load_configuration():
     if not os.path.exists(FILE_PATH_CONFIGURATION):
-        print('File configuration not exists. You need run pmail.py config --create')
+        print('File configuration not exists. You need run pmail.py config:create')
         return None
 
     configuration = configparser.ConfigParser()
