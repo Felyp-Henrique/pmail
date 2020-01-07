@@ -1,91 +1,185 @@
-import core
-import server
-import db
-from email import EmailTable
-import utils
+import argparse
+import pathlib
+import os
+import poplib
+import sqlite3
+import configparser
 
-class App(core.AppAbstract):
-    def add_arguments(self):
-        self.add_argument('--username', type=str, help='email of user as: username@hostname.com')
-        self.add_argument('--password', type=str, help='password of user')
+HOME_PATH = pathlib.Path.home()
 
-    def run_when_username_pass_as_input(self, opts):
-        print('Backup from only username')
+FILE_PATH_CONFIGURATION = os.path.join(HOME_PATH, '.pmail')
 
-        conf_server = self.configuration.get('server')
-        
-        srv = server.POPServer(
-            host=conf_server.get('host', 'localhost'),
-            username=opts.username,
-            password=opts.password,
-            port=conf_server.get('port', server.poplib.POP3_PORT),
-            ssl=conf_server.get('ssl', False),
-        )
+CONFIGURATION_CHOICES = 'all backup server users'.split()
 
-        inbox = srv.get_inbox()
-        
-        path_db, name_db = utils.get_path_and_name_db(self)
+DEFAULT_CONFIGURATION_STRUCT = {
+    'backup': {
+        'path': HOME_PATH,
+        'name': 'backup',
+    },
 
-        email_table = EmailTable()
-        email_table.connection = db.DataBaseConnection(path_db, name_db)
-        email_table.create_table()
+    'server': {
+        'host': 'localhost',
+        'port': 110,
+        'ssl': True
+    },
+    
+    'users': {},
+}
 
-        for email in inbox:
-            email_table['date'] = srv.get_date(email)
-            email_table['subject'] = srv.get_subject(email)
-            email_table['sender'] = srv.get_sender(email)
-            email_table['receiver'] = srv.get_receiver(email)
+"""
+    Management Function
 
-            body_protocol = "\n".join([line.decode('utf-8') for line in email])
-            email_table['body_protocol'] = body_protocol
+    This section is reserved to generic functions to manager configuration,
+    database, backup and users
+"""
 
-            email_table.save()
+def create_configuration_file(config={}):
+    if os.path.exists(FILE_PATH_CONFIGURATION):
+        print('Configuration already exists')
+        return
+    
+    configuration = configparser.ConfigParser() 
+    
+    configuration.read_dict(
+        config if config else DEFAULT_CONFIGURATION_STRUCT
+    )
 
-    def run_with_list_users(self):
-        print('Backup multiple users')
+    with open(FILE_PATH_CONFIGURATION, 'w') as conf_file:
+        configuration.write(conf_file)
 
-        conf_server = self.configuration.get('server')
-        conf_users = self.configuration.get('users')
-        
-        path_db, name_db = utils.get_path_and_name_db(self)
+    print('Configuration created with success')
 
-        email_table = EmailTable()
-        email_table.connection = db.DataBaseConnection(path_db, name_db)
-        email_table.create_table()
+def load_configuration():
+    if not os.path.exists(FILE_PATH_CONFIGURATION):
+        print('File configuration not exists. You need run pmail.py config --create')
+        return None
 
-        for username, password in conf_users.items():
-            srv = server.POPServer(
-                host=conf_server.get('host', 'localhost'),
-                username=username,
-                password=password,
-                port=conf_server.get('port', server.poplib.POP3_PORT),
-                ssl=conf_server.get('ssl', False),
-            )
+    configuration = configparser.ConfigParser()
 
-            inbox = srv.get_inbox()
+    with open(FILE_PATH_CONFIGURATION, 'r') as conf_file:
+        configuration.read_file(conf_file)
+    
+    return configuration
 
-            for email in inbox:
-                email_table['date'] = srv.get_date(email)
-                email_table['subject'] = srv.get_subject(email)
-                email_table['sender'] = srv.get_sender(email)
-                email_table['receiver'] = srv.get_receiver(email)
+"""
+    Command Function
 
-                body_protocol = "\n".join([line.decode('utf-8') for line in email])
-                email_table['body_protocol'] = body_protocol
+    This section is reserved to functions that process input arguments
+"""
+def command_create_configuration(**kwargs):
+    new_configuration = configparser.ConfigParser()
 
-                email_table.save()
+    print("[BACKUP]")
 
-    def handle_input(self, opts):
-        if opts.username is not None:
-            self.run_when_username_pass_as_input(opts)
+    backup = 'path name'.split()
+    new_configuration['backup'] = {
+        option: input(f"Set { option }: ") for option in backup
+    }
+
+    print("\n[SERVER]")
+
+    server = 'host port ssl'.split()
+    new_configuration['server'] = {
+        option: input(f"Set { option }: ") for option in server
+    }
+
+    print("\n[USERS]")
+
+    new_configuration['users'] = {}
+
+    new_configuration.write(
+        open(FILE_PATH_CONFIGURATION, 'w')
+    )
+
+def command_get_configuration(**kwargs):
+    opts = kwargs.get('opts')
+    configuration = kwargs.get('configuration')
+
+    # to list all options of a section
+    if len(opts.input) == 1:
+        section = opts.input[0]
+        for option, value in configuration[section.lower()].items():
+            print(f"{ option.lower() }: { value }")
+    
+    # to list option and value of a section
+    if len(opts.input) > 1:
+        section, option = opts.input
+        print(configuration[section][option])
+    
+    # to list all sections
+    if len(opts.input) == 0:
+        for section, options in configuration.items():
+            if section.lower() == 'default':
+                continue
             
-            return # exit the command
-        
-        self.run_with_list_users()
+            output = f"[{ section.upper() }]\n" + "\n".join([
+                f"{ option }: { value }" for option, value in options.items()
+            ])
 
-if __name__ == "__main__":
-    App.create_configuration() # create configuration if not exists
+            print(output, "\n")
 
-    app = App(app_name='PMail', description='E-Mail Buckupper')
-    app.load_configuration()
-    app.loop()
+def command_set_configuration(**kwargs):
+    section, option, value = kwargs.get('opts').input
+    configuration = kwargs.get('configuration')
+
+    configuration[section][option] = value
+    configuration.write(
+        open(FILE_PATH_CONFIGURATION, 'w')
+    )
+
+"""
+    Define Input Arguments
+"""
+arguments = argparse.ArgumentParser('PMail', description='Mail Backupper')
+sub_arguments = arguments.add_subparsers()
+
+# config:create
+arg_create_configuration = sub_arguments.add_parser(
+    'config:create',
+    help='create file configuration'
+)
+arg_create_configuration.set_defaults(
+    func=command_create_configuration
+)
+
+# config:get
+arg_get_configuration = sub_arguments.add_parser(
+    'config:get',
+    help='get configuration value'
+)
+arg_get_configuration.add_argument(
+    'input',
+    nargs='*',
+    help='get the all, section or option',
+)
+arg_get_configuration.set_defaults(
+    func=command_get_configuration
+)
+
+# config:set
+arg_set_configuration = sub_arguments.add_parser(
+    'config:set',
+    help='set configuration value'
+)
+arg_set_configuration.add_argument(
+    'input',
+    nargs=3,
+    help='set option value',
+)
+arg_set_configuration.set_defaults(
+    func=command_set_configuration
+)
+
+"""
+    Main Function
+"""
+def main():
+    global arguments
+
+    configuration = load_configuration()
+
+    opts = arguments.parse_args()
+    opts.func(opts=opts, configuration=configuration)
+
+if __name__ == '__main__':
+    main()
