@@ -4,6 +4,12 @@ import os
 import poplib
 import sqlite3
 import configparser
+import inspect
+import datetime
+
+"""
+    Necessary Variables, Constants, Class and others
+"""
 
 HOME_PATH = pathlib.Path.home()
 
@@ -26,6 +32,83 @@ DEFAULT_CONFIGURATION_STRUCT = {
     'users': {},
 }
 
+class TableDataBaseDict(dict):
+    def __init__(self, path_db: str, name: str = None) -> None:
+        self.name = name or self.__class__.__name__.lower()
+        self.path_db = path_db
+
+    def __get_connection(self):
+        return sqlite3.connect(self.path_db)
+
+    def create_table(self) -> None:
+        connection = self.__get_connection()
+        cursor = connection.cursor()
+
+        fields = ','.join([
+            f"{ field } TEXT" for field in self.keys()
+        ])
+
+        sql = f"CREATE TABLE IF NOT EXISTS { self.name } ( { fields } )"
+        
+        cursor.execute(sql)
+        connection.commit()
+
+        cursor.close()
+        connection.close()
+    
+    def save(self) -> None:
+        connection = self.__get_connection()
+        cursor = connection.cursor()
+
+        fields = ','.join(self.keys())
+
+        values = ','.join([
+            f"'{ value }'" for value in self.values()
+        ])
+
+        sql = f"INSERT INTO { self.name } ({ fields }) VALUES ({ values })"
+
+        cursor.execute(sql)
+        connection.commit()
+
+        cursor.close()
+        connection.close()
+
+class EmailTable(TableDataBaseDict):
+    def __init__(self, path_db: str) -> None:
+        super().__init__(path_db, 'emails')
+
+        # define the table fields
+        self.setdefault('username', '')
+        self.setdefault('sender', '')
+        self.setdefault('date', '')
+        self.setdefault('subject', '')
+        self.setdefault('body_protocol', '')
+
+class POPServer():
+    def __init__(self, **kwargs) -> None:
+        self.ssl = kwargs.get('ssl', False)
+        self.host = kwargs.get('host', 'localhost')
+        self.port = kwargs.get('port', poplib.POP3_PORT)
+        self.username = kwargs.get('username', '')
+        self.password = kwargs.get('password', '')
+
+        self.__server = None
+
+    def connect(self):
+        server_info = self.host, self.port
+
+        self.__server = poplib.POP3(*server_info) if not self.ssl else poplib.POP3_SSL(*server_info)
+        self.__server.user(self.username)
+        self.__server.pass_(self.password)
+
+    def get_emails(self):
+        number_emails = len(self.__server.list()[1])
+
+        return [self.__server.retr(i)[1] for i in range(1, number_emails + 1)]
+
+    def get_sender(self, email):
+        pass
 """
     Management Function
 
@@ -33,7 +116,7 @@ DEFAULT_CONFIGURATION_STRUCT = {
     database, backup and users
 """
 
-def create_configuration_file(config={}):
+def create_configuration_file(config: dict = {}) -> None:
     if os.path.exists(FILE_PATH_CONFIGURATION):
         print('Configuration already exists')
         return
@@ -49,7 +132,7 @@ def create_configuration_file(config={}):
 
     print('Configuration created with success')
 
-def load_configuration():
+def load_configuration() -> configparser.ConfigParser:
     if not os.path.exists(FILE_PATH_CONFIGURATION):
         print('File configuration not exists. You need run pmail.py config:create')
         return None
@@ -61,12 +144,21 @@ def load_configuration():
     
     return configuration
 
+def create_name_to_database(configuration: configparser.ConfigParser) -> str:
+    time_init = datetime.datetime.now().strftime(
+        "%y-%m-%d %H-%M-%S"
+    )
+
+    backup_name = configuration.get('backup', 'name')
+
+    return f"{ time_init }{ backup_name }.sqlite3"
+
 """
     Command Function
 
     This section is reserved to functions that process input arguments
 """
-def command_create_configuration(**kwargs):
+def command_create_configuration(**kwargs) -> None:
     new_configuration = configparser.ConfigParser()
 
     print("[BACKUP]")
@@ -91,7 +183,7 @@ def command_create_configuration(**kwargs):
         open(FILE_PATH_CONFIGURATION, 'w')
     )
 
-def command_get_configuration(**kwargs):
+def command_get_configuration(**kwargs) -> None:
     opts = kwargs.get('opts')
     configuration = kwargs.get('configuration')
 
@@ -118,14 +210,29 @@ def command_get_configuration(**kwargs):
 
             print(output, "\n")
 
-def command_set_configuration(**kwargs):
+def command_set_configuration(**kwargs) -> None:
     section, option, value = kwargs.get('opts').input
     configuration = kwargs.get('configuration')
 
-    configuration[section][option] = value
+    configuration.set(section, option, value)
+
     configuration.write(
         open(FILE_PATH_CONFIGURATION, 'w')
     )
+
+def command_adduser_configuration(**kwargs) -> None:
+    opts = kwargs.get('opts')
+
+    configuration = kwargs.get('configuration')
+    configuration.set('users', opts.username, opts.password)
+
+    configuration.write(
+        open(FILE_PATH_CONFIGURATION, 'w')
+    )
+
+def command_run_backup(**kwargs):
+    email_table = kwargs.get('email_table')
+    email_table.create_table()
 
 """
     Define Input Arguments
@@ -139,7 +246,7 @@ arg_create_configuration = sub_arguments.add_parser(
     help='create file configuration'
 )
 arg_create_configuration.set_defaults(
-    func=command_create_configuration
+    command=command_create_configuration
 )
 
 # config:get
@@ -153,7 +260,7 @@ arg_get_configuration.add_argument(
     help='get the all, section or option',
 )
 arg_get_configuration.set_defaults(
-    func=command_get_configuration
+    command=command_get_configuration
 )
 
 # config:set
@@ -167,19 +274,54 @@ arg_set_configuration.add_argument(
     help='set option value',
 )
 arg_set_configuration.set_defaults(
-    func=command_set_configuration
+    command=command_set_configuration
+)
+
+# config:adduser
+arg_adduser_configuration = sub_arguments.add_parser(
+    'config:adduser',
+    help='add user to backup'
+)
+arg_adduser_configuration.add_argument(
+    'username',
+    type=str,
+    help='username@hostname.com',
+)
+arg_adduser_configuration.add_argument(
+    'password',
+    type=str,
+    help='password for user',
+)
+arg_adduser_configuration.set_defaults(
+    command=command_adduser_configuration
+)
+
+# backup:run
+arg_run_backup = sub_arguments.add_parser(
+    'backup:run',
+    help='make backup'
+)
+arg_run_backup.set_defaults(
+    command=command_run_backup
 )
 
 """
     Main Function
 """
-def main():
+def main() -> None:
     global arguments
 
     configuration = load_configuration()
 
+    path_db = create_name_to_database(configuration)
+    email_table = EmailTable(path_db)
+
     opts = arguments.parse_args()
-    opts.func(opts=opts, configuration=configuration)
+
+    if getattr(opts, 'command', None):
+        opts.command(opts=opts, configuration=configuration, email_table=email_table)
+    else:
+        arguments.print_help()
 
 if __name__ == '__main__':
     main()
