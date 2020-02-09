@@ -38,6 +38,6 @@ password: ******
 This other example, the user pass the password as argument:
 
 ```shell
-$ pmail my.domain user@my.domain --pass my_pass_less_secure
+$ pmail my.domain user@my.domain --password my_pass_less_secure
 # will print all e-mails relative this user
 ```
