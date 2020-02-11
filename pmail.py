@@ -46,7 +46,7 @@ pop_server.pass_(options.password or getpass.getpass())
 number_messages = len(pop_server.list()[1])
 
 # save backup in zip file
-if options.outzip is not None:
+if options.outzip:
     file_name = f"./{ datetime.datetime.now() } - { options.email }"
     file_zip = zipfile.ZipFile(file_name, 'w')
     for i in range(number_messages):
