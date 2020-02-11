@@ -13,7 +13,7 @@ $ pmail --help
 usage: PMail [-h] [--port PORT] [--ssl] [--password PASSWORD] [--outzip]
              host email
 
-Simple e-mail backuper writed in Python 3
+Simple tool writed in Python 3 to backup emails.
 
 positional arguments:
   host                 Address of server POP3
@@ -25,7 +25,6 @@ optional arguments:
   --ssl
   --password PASSWORD  Password of user(less secure)
   --outzip             Save the backup in Zip file
-
 ```
 
 # Example
