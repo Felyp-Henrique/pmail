@@ -9,22 +9,19 @@ To run, you need install Python 3.x and then, run the file install.sh if you are
 # Usage
 
 ```shell
-$ pmail --help
-usage: PMail [-h] [--port PORT] [--ssl] [--password PASSWORD] [--outzip]
-             host email
+usage: PMail [-h] [--port PORT] [--ssl] [--password PASSWORD] host email
 
 Simple tool writed in Python 3 to backup emails.
 
 positional arguments:
   host                 Address of server POP3
-  email                E-mail address of user
+  email                Only email address of user
 
 optional arguments:
   -h, --help           show this help message and exit
   --port PORT          Port of server
   --ssl
   --password PASSWORD  Password of user(less secure)
-  --outzip             Save the backup in Zip file
 ```
 
 # Example
