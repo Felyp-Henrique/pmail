@@ -15,9 +15,8 @@ input_args = argparse.ArgumentParser(
 input_args.add_argument('host', help='Address of server POP3')
 input_args.add_argument('--port', type=int, help='Port of server')
 input_args.add_argument('--ssl', action='store_true')
-input_args.add_argument('email', help='E-mail address of user')
+input_args.add_argument('email', help='Only email address of user')
 input_args.add_argument('--password', help='Password of user(less secure)')
-input_args.add_argument('--outzip', action='store_true', help='Save the backup in Zip file')
 
 options = input_args.parse_args()
 
@@ -46,18 +45,11 @@ pop_server.pass_(options.password or getpass.getpass())
 number_messages = len(pop_server.list()[1])
 
 # save backup in zip file
-if options.outzip:
-    file_name = f"./{ datetime.datetime.now() } - { options.email }"
-    file_zip = zipfile.ZipFile(file_name, 'w')
-    for i in range(number_messages):
-        msg = b"\n".join(pop_server.retr(i+1)[1])
-        with tempfile.NamedTemporaryFile() as file_email:
-            file_email.write(msg)
-            file_zip.write(file_email.name)
-    file_zip.close()
-    exit(0)
-
-# if not make zip, only print the emails in standard out
+file_name = f"./{ datetime.datetime.now() } - { options.email }"
+file_zip = zipfile.ZipFile(file_name, 'w')
 for i in range(number_messages):
     msg = b"\n".join(pop_server.retr(i+1)[1])
-    print(msg.decode('utf-8'))
+    with tempfile.NamedTemporaryFile() as file_email:
+        file_email.write(msg)
+        file_zip.write(file_email.name)
+file_zip.close()
