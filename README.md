@@ -29,12 +29,12 @@ optional arguments:
 This example the user not pass the password as argument and save all emails in binary files and save the files in zip file:
 
 ```shell
-$ pmail my.domain user@my.domain --outzip
+$ pmail my.domain user@my.domain
 password: ******
 ```
 
 This other example, the user pass the password as argument:
 
 ```shell
-$ pmail my.domain user@my.domain --pass my_pass_less_secure --outzip
+$ pmail my.domain user@my.domain --pass my_pass_less_secure
 ```
