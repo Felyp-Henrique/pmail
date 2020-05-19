@@ -16,7 +16,7 @@ class POP3(EmailClient):
         This class is as a proxy that encapsulates the
         class POP3 and POP3_SSL from module poplib.
     """
-    def __init__(self, host: str):
+    def __init__(self, host: str = 'localhost') -> None:
         self.username = ''
         self.password = ''
         self.host = host
@@ -64,8 +64,7 @@ class POP3(EmailClient):
     def messages(self) -> Generator:
         """Return the Generator of inbox"""
         amount_email = len(self._server.list()[1])
-        for i in range(amount_email):
-            yield b"\n".join(self._server.retr(i + 1)[1]).decode('utf-8')
+        return (b"\n".join(self._server.retr(i + 1)[1]) for i in range(amount_email))
 
     def connect(self) -> None:
         """Initialize the connection with server"""
